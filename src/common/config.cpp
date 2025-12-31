@@ -133,15 +133,15 @@ static ConfigEntry<int> volumeSlider(100);
 static ConfigEntry<bool> isNeo(false);
 static ConfigEntry<bool> isDevKit(false);
 static ConfigEntry<int> extraDmemInMbytes(0);
-static ConfigEntry<bool> isPSNSignedIn(false);
+static ConfigEntry<bool> isPSNSignedIn(true);
 static ConfigEntry<bool> isTrophyPopupDisabled(false);
 static ConfigEntry<double> trophyNotificationDuration(6.0);
-static ConfigEntry<string> logFilter("");
+static ConfigEntry<string> logFilter("Lib.Net");
 static ConfigEntry<string> logType("sync");
 static ConfigEntry<string> userName("shadPS4");
 static ConfigEntry<bool> isShowSplash(false);
 static ConfigEntry<string> isSideTrophy("right");
-static ConfigEntry<bool> isConnectedToNetwork(false);
+static ConfigEntry<bool> isConnectedToNetwork(true);
 static bool enableDiscordRPC = false;
 static std::filesystem::path sys_modules_path = {};
 
@@ -518,7 +518,7 @@ void setVkGuestMarkersEnabled(bool enable, bool is_game_specific) {
 }
 
 bool getIsConnectedToNetwork() {
-    return isConnectedToNetwork.get();
+    return true;
 }
 
 void setConnectedToNetwork(bool enable, bool is_game_specific) {
@@ -791,7 +791,7 @@ bool getSeparateLogFilesEnabled() {
 }
 
 bool getPSNSignedIn() {
-    return isPSNSignedIn.get();
+    return true;
 }
 
 void setPSNSignedIn(bool sign, bool is_game_specific) {
@@ -1207,8 +1207,8 @@ void setDefaultValues(bool is_game_specific) {
         readbackLinearImagesEnabled.set(false, is_game_specific);
         isNeo.set(false, is_game_specific);
         isDevKit.set(false, is_game_specific);
-        isPSNSignedIn.set(false, is_game_specific);
-        isConnectedToNetwork.set(false, is_game_specific);
+        isPSNSignedIn.set(true, is_game_specific);
+        isConnectedToNetwork.set(true, is_game_specific);
         directMemoryAccessEnabled.set(false, is_game_specific);
         extraDmemInMbytes.set(0, is_game_specific);
     }

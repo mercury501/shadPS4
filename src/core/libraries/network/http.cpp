@@ -22,6 +22,9 @@ std::string host_override = "localhost";
 
 std::string ReplaceHost(std::string url, const std::string& new_host, bool force_http = true) {
 
+    if (url.find("mercury501") != std::string::npos)
+        return url;
+
     std::string separator = "://";
     u64 protocol_pos = url.find(separator);
 
@@ -813,7 +816,7 @@ int PS4_SYSV_ABI sceHttpSetInflateGZIPEnabled() {
 }
 
 int PS4_SYSV_ABI sceHttpSetNonblock(s32 tmpl_id, bool enable) {
-    LOG_ERROR(Lib_Http, "(STUBBED) called");
+    LOG_ERROR(Lib_Http, "called, template id: {}, enable: {}", tmpl_id, enable);
 
     if (!g_isHttpInitialized) {
 
