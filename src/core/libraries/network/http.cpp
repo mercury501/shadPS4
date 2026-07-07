@@ -220,6 +220,8 @@ int PS4_SYSV_ABI sceHttpCreateRequestWithURL(s32 tmpl_id, s32 method, const char
 
     std::string url_str = ReplaceHost(std::string(url), host_override);
 
+    LOG_ERROR(Lib_Http, "ACTUAL HOST: '{}'", url_str);
+
     std::lock_guard<std::mutex> lock_t(g_templates_map_mutex);
 
     auto it = g_templates.find(tmpl_id);
