@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <boost/container/small_vector.hpp>
@@ -53,16 +53,16 @@ void ThreadState::Collect(Pthread* curthread) {
 
 void ThreadState::TryCollect(Pthread* thread) {
     SCOPE_EXIT {
-        thread->lock.unlock();
+        thread->lock->unlock();
     };
     if (!thread->ShouldCollect()) {
         return;
     }
 
     thread->refcount++;
-    thread->lock.unlock();
+    thread->lock->unlock();
     std::scoped_lock lk{thread_list_lock};
-    thread->lock.lock();
+    thread->lock->lock();
     thread->refcount--;
     if (thread->ShouldCollect()) {
         threads.erase(thread);
@@ -78,8 +78,10 @@ Pthread* ThreadState::Alloc(Pthread* curthread) {
         }
         if (!free_threads.empty()) {
             std::scoped_lock lk{free_thread_lock};
-            thread = free_threads.back();
-            free_threads.pop_back();
+            if (!free_threads.empty()) {
+                thread = free_threads.back();
+                free_threads.pop_back();
+            }
         }
     }
     if (thread == nullptr) {
@@ -123,14 +125,21 @@ void ThreadState::Free(Pthread* curthread, Pthread* thread) {
         TcbDtor(thread->tcb);
     }
     thread->tcb = nullptr;
-    std::destroy_at(thread);
-    if (free_threads.size() >= MaxCachedThreads) {
-        delete thread->sleepqueue;
+    auto* sleepqueue = thread->sleepqueue;
+    bool should_free;
+    {
+        std::scoped_lock lk{free_thread_lock};
+        if (free_threads.size() >= MaxCachedThreads) {
+            should_free = true;
+        } else {
+            should_free = false;
+            free_threads.push_back(thread);
+        }
+    }
+    if (should_free) {
+        delete sleepqueue;
         thread_heap.Free(thread);
         total_threads.fetch_sub(1);
-    } else {
-        std::scoped_lock lk{free_thread_lock};
-        free_threads.push_back(thread);
     }
 }
 
@@ -143,9 +152,9 @@ int ThreadState::FindThread(Pthread* thread, const bool include_dead) {
     if (it == threads.end()) {
         return POSIX_ESRCH;
     }
-    thread->lock.lock();
+    thread->lock->lock();
     if (!include_dead && thread->state == PthreadState::Dead) {
-        thread->lock.unlock();
+        thread->lock->unlock();
         return POSIX_ESRCH;
     }
     return 0;
@@ -162,12 +171,12 @@ int ThreadState::RefAdd(Pthread* thread, bool include_dead) {
     }
 
     thread->refcount++;
-    thread->lock.unlock();
+    thread->lock->unlock();
     return 0;
 }
 
 void ThreadState::RefDelete(Pthread* thread) {
-    thread->lock.lock();
+    thread->lock->lock();
     thread->refcount--;
     TryCollect(thread);
 }

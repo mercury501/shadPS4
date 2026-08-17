@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -46,9 +46,10 @@ struct ImageInfo {
     bool IsTiled() const {
         return tile_mode != AmdGpu::TileMode::DisplayLinearAligned;
     }
+
     Extent2D BlockDim() const {
         const auto dim = props.is_block ? 2 : 0;
-        return Extent2D{size.width >> dim, size.height >> dim};
+        return Extent2D{pitch >> dim, size.height >> dim};
     }
 
     s32 MipOf(const ImageInfo& info) const;

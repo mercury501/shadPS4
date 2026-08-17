@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <thread>
@@ -13,6 +13,7 @@
 #include "common/va_ctx.h"
 #include "core/file_sys/fs.h"
 #include "core/libraries/error_codes.h"
+#include "core/libraries/kernel/coredump/coredump.h"
 #include "core/libraries/kernel/debug.h"
 #include "core/libraries/kernel/equeue.h"
 #include "core/libraries/kernel/file_system.h"
@@ -42,6 +43,8 @@
 namespace Libraries::Kernel {
 
 static u64 g_stack_chk_guard = 0xDEADBEEF54321ABC; // dummy return
+char const* g_environment[64];
+static const char* g_progname = "eboot.bin";
 
 boost::asio::io_context io_context;
 static std::mutex m_asio_req;
@@ -111,6 +114,9 @@ void SetPosixErrno(s32 e) {
     case ENOENT:
         g_posix_errno = POSIX_ENOENT;
         break;
+    case EINTR:
+        g_posix_errno = POSIX_EINTR;
+        break;
     case EDEADLK:
         g_posix_errno = POSIX_EDEADLK;
         break;
@@ -142,23 +148,6 @@ void SetPosixErrno(s32 e) {
         LOG_WARNING(Kernel, "Unhandled errno {}", e);
         g_posix_errno = e;
     }
-}
-
-static u64 g_mspace_atomic_id_mask = 0;
-static u64 g_mstate_table[64] = {0};
-
-struct HeapInfoInfo {
-    u64 size = sizeof(HeapInfoInfo);
-    u32 flag;
-    u32 getSegmentInfo;
-    u64* mspace_atomic_id_mask;
-    u64* mstate_table;
-};
-
-void PS4_SYSV_ABI sceLibcHeapGetTraceInfo(HeapInfoInfo* info) {
-    info->mspace_atomic_id_mask = &g_mspace_atomic_id_mask;
-    info->mstate_table = g_mstate_table;
-    info->getSegmentInfo = 0;
 }
 
 struct OrbisKernelUuid {
@@ -298,8 +287,160 @@ s32 PS4_SYSV_ABI sceKernelGetAppInfo(s32 pid, OrbisKernelAppInfo* app_info) {
     return ORBIS_OK;
 }
 
+s32 PS4_SYSV_ABI sceKernelTitleWorkaroundIsEnabled(OrbisKernelTitleWorkaround* tw, s32 bit,
+                                                   s32* result) {
+    LOG_ERROR(Lib_Kernel, "(STUBBED) called, bit {:#x}", bit);
+    if (!tw || !result) {
+        return ORBIS_KERNEL_ERROR_EFAULT;
+    }
+
+    // Maximum bit value is known to change with new firmwares.
+    if (bit >= 0x3a) {
+        return ORBIS_KERNEL_ERROR_EINVAL;
+    }
+
+    // Straight from decompilation, most uses rely on workaround data from sceKernelGetAppInfo.
+    *result = ((tw->ids[bit >> 6] >> (bit & 0x3f)) & 1);
+    return ORBIS_OK;
+}
+
+s32 PS4_SYSV_ABI sceKernelGetProcessType(s32 pid) {
+    LOG_ERROR(Lib_Kernel, "(STUBBED) called, pid: {}", pid);
+    if (pid != GLOBAL_PID) {
+        return ORBIS_KERNEL_ERROR_ENOSYS;
+    }
+    return 0;
+}
+
+s32 PS4_SYSV_ABI __sys_regmgr_call(u32 op, u32 key, void* result, void* value, u64 len) {
+    LOG_ERROR(Lib_Kernel, "(STUBBED) called, op: {:#x}, key: {}, len: {}", op, key, len);
+    return ORBIS_OK;
+}
+
+// Nominally: long sysconf(int name);
+u64 PS4_SYSV_ABI posix_sysconf(s32 name) {
+    switch (name) {
+    case 0:
+        return 0x20000;
+    case POSIX_SC_ARG_MAX:
+        return 0x588bc000;
+    case POSIX_SC_CHILD_MAX:
+        return 0x64;
+    case POSIX_SC_CLK_TCK:
+        return 0x20;
+    case POSIX_SC_NGROUPS_MAX:
+        return 0x644;
+    case POSIX_SC_OPEN_MAX:
+        return -0x1;
+    case POSIX_SC_JOB_CONTROL:
+        return 0x6;
+    case POSIX_SC_SAVED_IDS:
+        return 0x1;
+    case POSIX_SC_VERSION:
+        return 0x1;
+    case POSIX_SC_BC_BASE_MAX:
+        return 0x31069;
+    case POSIX_SC_BC_DIM_MAX:
+        return -0x1;
+    case POSIX_SC_BC_SCALE_MAX:
+        return 0x31069;
+    case POSIX_SC_BC_STRING_MAX:
+        return 0x31069;
+    case POSIX_SC_COLL_WEIGHTS_MAX:
+        return -0x1;
+    case POSIX_SC_EXPR_NEST_MAX:
+        return -0x1;
+    case POSIX_SC_LINE_MAX:
+        return 0x31069;
+    case POSIX_SC_RE_DUP_MAX:
+        return 0x31069;
+    case POSIX_SC_2_VERSION:
+        return 0x31069;
+    case POSIX_SC_2_C_BIND:
+        return 0x31069;
+    case POSIX_SC_2_C_DEV:
+        return 0x31069;
+    case POSIX_SC_2_CHAR_TERM:
+        return 0x31069;
+    case POSIX_SC_2_FORT_DEV:
+        return 0x31069;
+    case POSIX_SC_2_FORT_RUN:
+        return 0x31069;
+    case POSIX_SC_2_LOCALEDEF:
+        return -0x1;
+    case POSIX_SC_2_SW_DEV:
+        return -0x1;
+    case POSIX_SC_2_UPE:
+        return 0x0;
+    case POSIX_SC_STREAM_MAX:
+        return 0x7fffffff;
+    case POSIX_SC_TZNAME_MAX:
+        return -0x1;
+    case POSIX_SC_ASYNCHRONOUS_IO:
+        return 0x8000;
+    case POSIX_SC_MAPPED_FILES:
+        return 0x31069;
+    case POSIX_SC_MEMLOCK:
+        return 0x4000;
+    case POSIX_SC_MEMLOCK_RANGE:
+        return 0x1e;
+    case POSIX_SC_MEMORY_PROTECTION:
+        return 0x100;
+    case POSIX_SC_MESSAGE_PASSING:
+        return 0x7fffffff;
+    case POSIX_SC_PRIORITIZED_IO:
+        return -0x1;
+    case POSIX_SC_PRIORITY_SCHEDULING:
+        return -0x1;
+    case POSIX_SC_REALTIME_SIGNALS:
+        return 0x63;
+    case POSIX_SC_SEMAPHORES:
+        return 0x800;
+    case POSIX_SC_FSYNC:
+        return 0x63;
+    case POSIX_SC_SHARED_MEMORY_OBJECTS:
+        return 0x3e8;
+    case POSIX_SC_SYNCHRONIZED_IO:
+        return 0x2;
+    case POSIX_SC_THREAD_ATTR_STACKSIZE:
+        return 0x1;
+    case POSIX_SC_THREAD_CPUTIME:
+        return 0x1;
+    case POSIX_SC_THREAD_DESTRUCTOR_ITERATIONS:
+        return 0x48000;
+    case POSIX_SC_THREAD_KEYS_MAX:
+        return 0x1a078630b2dd7;
+    case POSIX_SC_THREAD_PRIO_INHERIT:
+        return -0x1;
+    case POSIX_SC_THREAD_PRIO_PROTECT:
+        return -0x1;
+    case POSIX_SC_THREAD_PRIORITY_SCHEDULING:
+        return 0x2bc;
+    case POSIX_SC_THREAD_PROCESS_SHARED:
+        return 0x2bc;
+    case POSIX_SC_THREAD_SAFE_FUNCTIONS:
+        return 0x1;
+    case POSIX_SC_THREAD_SPORADIC_SERVER:
+        return -0x1;
+    case POSIX_SC_THREAD_STACK_MIN:
+        return 0x1;
+    case POSIX_SC_THREAD_THREADS_MAX:
+        return 0x1;
+    case POSIX_SC_TIMEOUTS:
+        return -0x1;
+    // Manually specified
+    case POSIX_SC_PAGESIZE:
+        return posix_getpagesize();
+    default:
+        LOG_ERROR(Lib_Kernel, "unhandled {}", name);
+        return 0;
+    }
+}
+
 void RegisterLib(Core::Loader::SymbolsResolver* sym) {
     service_thread = std::jthread{KernelServiceThread};
+
+    static char const** kernel_environ = g_environment;
 
     Libraries::Kernel::RegisterFileSystem(sym);
     Libraries::Kernel::RegisterTime(sym);
@@ -311,24 +452,33 @@ void RegisterLib(Core::Loader::SymbolsResolver* sym) {
     Libraries::Kernel::RegisterException(sym);
     Libraries::Kernel::RegisterAio(sym);
     Libraries::Kernel::RegisterDebug(sym);
+    Libraries::Kernel::RegisterCoredump(sym);
 
     LIB_OBJ("f7uOxY9mM1U", "libkernel", 1, "libkernel", &g_stack_chk_guard);
+    LIB_OBJ("+2thxYZ4syk", "libkernel", 1, "libkernel", &kernel_environ);
+    LIB_OBJ("djxxOmW6-aw", "libkernel", 1, "libkernel", &g_progname);
     LIB_FUNCTION("D4yla3vx4tY", "libkernel", 1, "libkernel", sceKernelError);
     LIB_FUNCTION("YeU23Szo3BM", "libkernel", 1, "libkernel", sceKernelGetAllowedSdkVersionOnSystem);
     LIB_FUNCTION("Mv1zUObHvXI", "libkernel", 1, "libkernel", sceKernelGetSystemSwVersion);
     LIB_FUNCTION("igMefp4SAv0", "libkernel", 1, "libkernel", get_authinfo);
     LIB_FUNCTION("G-MYv5erXaU", "libkernel", 1, "libkernel", sceKernelGetAppInfo);
+    LIB_FUNCTION("1yca4VvfcNA", "libkernel", 1, "libkernel", sceKernelTitleWorkaroundIsEnabled);
+    LIB_FUNCTION("+g+UP8Pyfmo", "libkernel", 1, "libkernel", sceKernelGetProcessType);
     LIB_FUNCTION("PfccT7qURYE", "libkernel", 1, "libkernel", kernel_ioctl);
     LIB_FUNCTION("wW+k21cmbwQ", "libkernel", 1, "libkernel", kernel_ioctl);
     LIB_FUNCTION("JGfTMBOdUJo", "libkernel", 1, "libkernel", sceKernelGetFsSandboxRandomWord);
+    LIB_FUNCTION("JGfTMBOdUJo", "libkernel_psmkit", 1, "libkernel",
+                 sceKernelGetFsSandboxRandomWord);
     LIB_FUNCTION("6xVpy0Fdq+I", "libkernel", 1, "libkernel", _sigprocmask);
     LIB_FUNCTION("Xjoosiw+XPI", "libkernel", 1, "libkernel", sceKernelUuidCreate);
     LIB_FUNCTION("Ou3iL1abvng", "libkernel", 1, "libkernel", stack_chk_fail);
     LIB_FUNCTION("9BcDykPmo1I", "libkernel", 1, "libkernel", __Error);
     LIB_FUNCTION("k+AXqu2-eBc", "libkernel", 1, "libkernel", posix_getpagesize);
     LIB_FUNCTION("k+AXqu2-eBc", "libScePosix", 1, "libkernel", posix_getpagesize);
-    LIB_FUNCTION("NWtTN10cJzE", "libSceLibcInternalExt", 1, "libSceLibcInternal",
-                 sceLibcHeapGetTraceInfo);
+    LIB_FUNCTION("7NwggrWJ5cA", "libkernel", 1, "libkernel", __sys_regmgr_call);
+
+    LIB_FUNCTION("mkawd0NA9ts", "libkernel", 1, "libkernel", posix_sysconf);
+    LIB_FUNCTION("mkawd0NA9ts", "libScePosix", 1, "libkernel", posix_sysconf);
 
     // network
     LIB_FUNCTION("XVL8So3QJUk", "libkernel", 1, "libkernel", Libraries::Net::sys_connect);

@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <cstring>
+#include <ranges>
 
 #include "common/assert.h"
 #include "common/io_file.h"
@@ -113,6 +115,7 @@ bool PSF::Encode(const std::filesystem::path& filepath) const {
         LOG_ERROR(Core, "Failed to write PSF file. Written {} Expected {}", written,
                   psf_buffer.size());
     }
+    file.Close();
     return written == psf_buffer.size();
 }
 

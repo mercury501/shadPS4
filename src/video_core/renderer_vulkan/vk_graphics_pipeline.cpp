@@ -6,6 +6,7 @@
 #include <boost/container/small_vector.hpp>
 
 #include "common/assert.h"
+#include "shader_recompiler/backend/spirv/emit_spirv_discard_frag.h"
 #include "shader_recompiler/backend/spirv/emit_spirv_quad_rect.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
@@ -25,15 +26,6 @@ static constexpr std::array LogicalStageToStageBit = {
     vk::ShaderStageFlagBits::eGeometry,
     vk::ShaderStageFlagBits::eCompute,
 };
-
-static bool IsPrimitiveTopologyList(const vk::PrimitiveTopology topology) {
-    return topology == vk::PrimitiveTopology::ePointList ||
-           topology == vk::PrimitiveTopology::eLineList ||
-           topology == vk::PrimitiveTopology::eTriangleList ||
-           topology == vk::PrimitiveTopology::eLineListWithAdjacency ||
-           topology == vk::PrimitiveTopology::eTriangleListWithAdjacency ||
-           topology == vk::PrimitiveTopology::ePatchList;
-}
 
 GraphicsPipeline::GraphicsPipeline(
     const Instance& instance, Scheduler& scheduler, DescriptorHeap& desc_heap,
@@ -237,6 +229,19 @@ GraphicsPipeline::GraphicsPipeline(
             .module = modules[stage],
             .pName = "main",
         });
+    } else if (runtime_infos[u32(Shader::LogicalStage::Fragment)].fs_info.clip_distance_emulation) {
+        if (!preloading) {
+            const auto vs_runtime_info =
+                runtime_infos[static_cast<u32>(Shader::LogicalStage::Vertex)].vs_info;
+
+            sdata.fragment =
+                Shader::Backend::SPIRV::EmitDiscardFragmentShader(vs_runtime_info.outputs);
+        }
+        shader_stages.emplace_back(vk::PipelineShaderStageCreateInfo{
+            .stage = vk::ShaderStageFlagBits::eFragment,
+            .module = CompileSPV(sdata.fragment, instance.GetDevice()),
+            .pName = "main",
+        });
     }
 
     const auto depth_format =
@@ -358,6 +363,10 @@ GraphicsPipeline::GraphicsPipeline(
         .blendConstants = std::array{1.0f, 1.0f, 1.0f, 1.0f},
     };
 
+    // Required by spec unless VK_EXT_extended_dynamic_state3 is supported.
+    // In practice, we use dynamic state for all of it.
+    constexpr vk::PipelineDepthStencilStateCreateInfo depth_stencil_info = {};
+
     const vk::GraphicsPipelineCreateInfo pipeline_info = {
         .pNext = &pipeline_rendering_ci,
         .stageCount = static_cast<u32>(shader_stages.size()),
@@ -368,6 +377,8 @@ GraphicsPipeline::GraphicsPipeline(
         .pViewportState = &viewport_info,
         .pRasterizationState = &raster_chain.get(),
         .pMultisampleState = &sdata.multisampling,
+        .pDepthStencilState =
+            !instance.IsExtendedDynamicState3Supported() ? &depth_stencil_info : nullptr,
         .pColorBlendState = &color_blending,
         .pDynamicState = &dynamic_info,
         .layout = *pipeline_layout,
@@ -457,13 +468,15 @@ void GraphicsPipeline::BuildDescSetLayout(bool preloading) {
             });
         }
         for (const auto& image : stage->images) {
+            const u32 num_bindings = image.NumBindings(*stage);
             bindings.push_back({
-                .binding = binding++,
+                .binding = binding,
                 .descriptorType = image.is_written ? vk::DescriptorType::eStorageImage
                                                    : vk::DescriptorType::eSampledImage,
-                .descriptorCount = 1,
+                .descriptorCount = num_bindings,
                 .stageFlags = stage_bit,
             });
+            binding += num_bindings;
         }
         for (const auto& sampler : stage->samplers) {
             bindings.push_back({

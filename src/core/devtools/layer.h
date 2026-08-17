@@ -13,6 +13,7 @@ public:
     static void SetupSettings();
 
     void Draw() override;
+    bool ShouldKeepDrawing() override;
 
     // Must be inside a window
     static void DrawNullGpuNotice();
@@ -21,8 +22,6 @@ private:
     static void DrawMenuBar();
     static void DrawAdvanced();
     static void DrawSimple();
-
-    static void TextCentered(const std::string& text);
 };
 
 } // namespace Core::Devtools
@@ -30,6 +29,10 @@ private:
 namespace Overlay {
 
 void ToggleSimpleFps();
+void SetSimpleFps(bool enabled);
 void ToggleQuitWindow();
+void ShowVolume();
+
+void TextCentered(const std::string& text);
 
 } // namespace Overlay

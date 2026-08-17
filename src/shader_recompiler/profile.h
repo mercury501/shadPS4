@@ -19,14 +19,23 @@ struct Profile {
     bool support_int64{};
     bool support_float16{};
     bool support_float64{};
+    bool supports_denorm_behavior_independence{};
+    bool supports_rounding_mode_independence{};
+    bool support_fp16_denorm_preserve{};
+    bool support_fp16_denorm_flush{};
+    bool support_fp16_round_to_zero{};
     bool support_fp32_denorm_preserve{};
     bool support_fp32_denorm_flush{};
     bool support_fp32_round_to_zero{};
-    bool support_legacy_vertex_attributes{};
+    bool support_fp64_denorm_preserve{};
+    bool support_fp64_denorm_flush{};
+    bool support_fp64_round_to_zero{};
+    bool support_fp16_signed_zero_inf_nan_preserve{};
+    bool support_fp32_signed_zero_inf_nan_preserve{};
+    bool support_fp64_signed_zero_inf_nan_preserve{};
     bool supports_image_load_store_lod{};
     bool supports_native_cube_calc{};
     bool supports_trinary_minmax{};
-    bool supports_robust_buffer_access{};
     bool supports_buffer_fp32_atomic_min_max{};
     bool supports_image_fp32_atomic_min_max{};
     bool supports_buffer_int64_atomics{};
@@ -34,14 +43,16 @@ struct Profile {
     bool supports_workgroup_explicit_memory_layout{};
     bool supports_amd_shader_explicit_vertex_parameter{};
     bool supports_fragment_shader_barycentric{};
-    bool has_incomplete_fragment_shader_barycentric{};
     bool has_broken_spirv_clamp{};
     bool lower_left_origin_mode{};
     bool needs_manual_interpolation{};
     bool needs_lds_barriers{};
     bool needs_buffer_offsets{};
     bool needs_unorm_fixup{};
-    bool _pad0{};
+    bool needs_clip_distance_emulation{};
+    bool supports_shader_stencil_export{};
+
+    bool operator==(const Profile&) const = default;
 };
 
 } // namespace Shader

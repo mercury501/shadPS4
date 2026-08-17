@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "common/types.h"
+#include "core/emulator_settings.h"
 #include "core/loader/elf.h"
 #include "core/loader/symbols_resolver.h"
 
@@ -141,7 +142,7 @@ class MemoryManager;
 class Module {
 public:
     explicit Module(Core::MemoryManager* memory, const std::filesystem::path& file,
-                    u32& max_tls_index);
+                    std::unique_ptr<Core::FileSys::IFile> handle, u32& max_tls_index, s32 id);
     ~Module();
 
     VAddr GetBaseAddress() const noexcept {
@@ -162,6 +163,14 @@ public:
 
     bool IsSharedLib() const noexcept {
         return elf.IsSharedLib();
+    }
+
+    bool IsSystemLib() {
+        auto system_path = EmulatorSettings.GetSysModulesDir();
+        if (file.string().starts_with(system_path.string().c_str())) {
+            return true;
+        }
+        return false;
     }
 
     template <typename T = VAddr>
@@ -218,6 +227,7 @@ public:
     std::filesystem::path file;
     std::string name;
     Loader::Elf elf;
+    s32 id{};
     u64 aligned_base_size{};
     VAddr base_virtual_addr{};
     VAddr proc_param_virtual_addr{};

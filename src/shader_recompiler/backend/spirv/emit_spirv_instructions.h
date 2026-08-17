@@ -60,6 +60,8 @@ void EmitGetVectorRegister(EmitContext& ctx);
 void EmitSetVectorRegister(EmitContext& ctx);
 void EmitSetGotoVariable(EmitContext& ctx);
 void EmitGetGotoVariable(EmitContext& ctx);
+void EmitSetMaskLaneVariable(EmitContext& ctx);
+void EmitGetMaskLaneVariable(EmitContext& ctx);
 void EmitSetScc(EmitContext& ctx);
 Id EmitReadConst(EmitContext& ctx, IR::Inst* inst, Id addr, Id offset);
 Id EmitReadConstBuffer(EmitContext& ctx, u32 handle, Id index);
@@ -108,6 +110,8 @@ Id EmitBufferAtomicXor32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id addres
 Id EmitBufferAtomicSwap32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id address, Id value);
 Id EmitBufferAtomicCmpSwap32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id address, Id value,
                              Id cmp_value);
+Id EmitBufferAtomicFCmpSwap32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id address, Id value,
+                              Id cmp_value);
 Id EmitGetAttribute(EmitContext& ctx, IR::Attribute attr, u32 comp, u32 index);
 Id EmitGetAttributeU32(EmitContext& ctx, IR::Attribute attr, u32 comp);
 void EmitSetAttribute(EmitContext& ctx, IR::Attribute attr, Id value, u32 comp);
@@ -235,9 +239,9 @@ Id EmitFPAdd64(EmitContext& ctx, IR::Inst* inst, Id a, Id b);
 Id EmitFPSub32(EmitContext& ctx, IR::Inst* inst, Id a, Id b);
 Id EmitFPFma32(EmitContext& ctx, IR::Inst* inst, Id a, Id b, Id c);
 Id EmitFPFma64(EmitContext& ctx, IR::Inst* inst, Id a, Id b, Id c);
-Id EmitFPMax32(EmitContext& ctx, Id a, Id b, bool is_legacy = false);
+Id EmitFPMax32(EmitContext& ctx, Id a, Id b);
 Id EmitFPMax64(EmitContext& ctx, Id a, Id b);
-Id EmitFPMin32(EmitContext& ctx, Id a, Id b, bool is_legacy = false);
+Id EmitFPMin32(EmitContext& ctx, Id a, Id b);
 Id EmitFPMin64(EmitContext& ctx, Id a, Id b);
 Id EmitFPMinTri32(EmitContext& ctx, Id a, Id b, Id c);
 Id EmitFPMaxTri32(EmitContext& ctx, Id a, Id b, Id c);
@@ -456,6 +460,8 @@ Id EmitImageAtomicAnd32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords,
 Id EmitImageAtomicOr32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords, Id value);
 Id EmitImageAtomicXor32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords, Id value);
 Id EmitImageAtomicExchange32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id coords, Id value);
+Id EmitImageAtomicCmpSwap32(EmitContext& ctx, IR::Inst* inst, u32 handle, Id address, Id value,
+                            Id cmp_value);
 Id EmitCubeFaceIndex(EmitContext& ctx, IR::Inst* inst, Id cube_coords);
 Id EmitLaneId(EmitContext& ctx);
 Id EmitWarpId(EmitContext& ctx);

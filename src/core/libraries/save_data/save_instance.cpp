@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <iostream>
@@ -6,9 +6,9 @@
 #include <magic_enum/magic_enum.hpp>
 
 #include "common/assert.h"
-#include "common/config.h"
 #include "common/path_util.h"
 #include "common/singleton.h"
+#include "core/emulator_settings.h"
 #include "core/file_sys/fs.h"
 #include "save_backup.h"
 #include "save_instance.h"
@@ -46,14 +46,15 @@ static const std::unordered_map<int, std::string> default_title = {
 
 namespace Libraries::SaveData {
 
-fs::path SaveInstance::MakeTitleSavePath(OrbisUserServiceUserId user_id,
+fs::path SaveInstance::MakeTitleSavePath(Libraries::UserService::OrbisUserServiceUserId user_id,
                                          std::string_view game_serial) {
-    return Config::GetSaveDataPath() / std::to_string(user_id) / game_serial;
+    return EmulatorSettings.GetHomeDir() / std::to_string(user_id) / "savedata" / game_serial;
 }
 
 fs::path SaveInstance::MakeDirSavePath(OrbisUserServiceUserId user_id, std::string_view game_serial,
                                        std::string_view dir_name) {
-    return Config::GetSaveDataPath() / std::to_string(user_id) / game_serial / dir_name;
+    return EmulatorSettings.GetHomeDir() / std::to_string(user_id) / "savedata" / game_serial /
+           dir_name;
 }
 
 uint64_t SaveInstance::GetMaxBlockFromSFO(const PSF& psf) {
@@ -71,7 +72,7 @@ fs::path SaveInstance::GetParamSFOPath(const fs::path& dir_path) {
 
 void SaveInstance::SetupDefaultParamSFO(PSF& param_sfo, std::string dir_name,
                                         std::string game_serial) {
-    int locale = Config::GetLanguage();
+    int locale = EmulatorSettings.GetConsoleLanguage();
     if (!default_title.contains(locale)) {
         locale = 1; // default to en_US if not found
     }
@@ -89,8 +90,8 @@ void SaveInstance::SetupDefaultParamSFO(PSF& param_sfo, std::string dir_name,
 #undef P
 }
 
-SaveInstance::SaveInstance(int slot_num, OrbisUserServiceUserId user_id, std::string _game_serial,
-                           std::string_view _dir_name, int max_blocks)
+SaveInstance::SaveInstance(int slot_num, Libraries::UserService::OrbisUserServiceUserId user_id,
+                           std::string _game_serial, std::string_view _dir_name, int max_blocks)
     : slot_num(slot_num), user_id(user_id), game_serial(std::move(_game_serial)),
       dir_name(_dir_name),
       max_blocks(std::clamp(max_blocks, OrbisSaveDataBlocksMin2, OrbisSaveDataBlocksMax)) {
@@ -150,13 +151,13 @@ void SaveInstance::SetupAndMount(bool read_only, bool copy_icon, bool ignore_cor
     if (!exists) {
         CreateFiles();
         if (copy_icon) {
-            const auto& src_icon = g_mnt->GetHostPath("/app0/sce_sys/save_data.png");
-            if (fs::exists(src_icon)) {
+            if (auto bytes = g_mnt->ReadFile("/app0/sce_sys/save_data.png")) {
                 auto output_icon = GetIconPath();
                 if (fs::exists(output_icon)) {
                     fs::remove(output_icon);
                 }
-                fs::copy_file(src_icon, output_icon);
+                Common::FS::IOFile dst(output_icon, Common::FS::FileAccessMode::Create);
+                dst.WriteRaw<u8>(bytes->data(), bytes->size());
             }
         }
         exists = true;

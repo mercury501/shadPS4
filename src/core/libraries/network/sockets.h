@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -62,7 +62,7 @@ struct OrbisNetLinger {
     s32 l_linger;
 };
 struct Socket {
-    explicit Socket(int domain, int type, int protocol) {}
+    explicit Socket(int domain, int type, int protocol) : socket_type(type) {}
     virtual ~Socket() = default;
     virtual bool IsValid() const = 0;
     virtual int Close() = 0;
@@ -84,6 +84,7 @@ struct Socket {
     virtual std::optional<net_socket> Native() = 0;
     std::mutex m_mutex;
     std::mutex receive_mutex;
+    int socket_type;
 };
 
 struct PosixSocket : public Socket {
@@ -177,5 +178,16 @@ struct UnixSocket : public Socket {
         return sock;
     }
 };
+
+u16 GetP2PConfiguredPort();
+u32 GetP2PAdvertisedAddr();
+bool EnsureP2PTransport();
+bool P2PTransportIsReady();
+int P2PSignalingSendTo(const void* data, u32 len, u32 dest_addr, u16 dest_port);
+int P2PSignalingRecvFrom(void* buf, u32 len, u32* from_addr, u16* from_port);
+int P2PControlSendTo(const void* data, u32 len, u32 dest_addr, u16 dest_port);
+int P2PControlRecvFrom(void* buf, u32 len, u32* from_addr, u16* from_port);
+int P2PMatching2SendTo(const void* data, u32 len, u32 dest_addr, u16 dest_port);
+int P2PMatching2RecvFrom(void* buf, u32 len, u32* from_addr, u16* from_port);
 
 } // namespace Libraries::Net

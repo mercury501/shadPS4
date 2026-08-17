@@ -1,4 +1,4 @@
-//  SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+//  SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 //  SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <fstream>
@@ -8,11 +8,11 @@
 #include <imgui.h>
 
 #include "common.h"
-#include "common/config.h"
 #include "common/path_util.h"
 #include "common/string_util.h"
 #include "core/debug_state.h"
 #include "core/devtools/options.h"
+#include "core/emulator_settings.h"
 #include "imgui/imgui_std.h"
 #include "sdl_window.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
@@ -244,8 +244,8 @@ void ShaderList::Draw() {
         return;
     }
 
-    if (!Config::collectShadersForDebug()) {
-        DrawCenteredText("Enable 'CollectShader' in config to see shaders");
+    if (!EmulatorSettings.IsShaderCollect()) {
+        DrawCenteredText("Enable 'shader_collect' in config to see shaders");
         End();
         return;
     }
@@ -269,7 +269,10 @@ void ShaderList::Draw() {
             snprintf(name, sizeof(name), "%s", shader.name.c_str());
         }
         if (ButtonEx(name, {width, 20.0f}, ImGuiButtonFlags_NoHoveredOnFocus)) {
-            open_shaders.emplace_back(i);
+            if (std::find_if(open_shaders.begin(), open_shaders.end(),
+                             [i](auto& v) { return v.index == i; }) == open_shaders.end()) {
+                open_shaders.emplace_back(i);
+            }
         }
         i++;
     }

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2024 shadPS4 Emulator Project
+SPDX-FileCopyrightText: 2026 shadPS4 Emulator Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
@@ -58,6 +58,11 @@ This project began for fun. Given our limited free time, it may take some time b
 
 # Building
 
+## Docker
+
+For building shadPS4 in a containerized environment using Docker and VSCode, check the instructions here:  
+[**Docker Build Instructions**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-docker.md)
+
 ## Windows
 
 Check the build instructions for [**Windows**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-windows.md).
@@ -71,7 +76,7 @@ Check the build instructions for [**Linux**](https://github.com/shadps4-emu/shad
 Check the build instructions for [**macOS**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-macos.md).
 
 > [!IMPORTANT]
-> macOS users need at least macOS 15.4 to run shadPS4. Due to GPU issues there are currently heavy bugs on Intel Macs.
+> macOS users need at least macOS 26.0 to run shadPS4. Intel Macs are not supported.
 
 # Usage examples
 
@@ -103,7 +108,8 @@ For more information on how to test, debug and report issues with the emulator o
 F10 | FPS Counter
 Ctrl+F10 | Video Debug Info
 F11 | Fullscreen
-F12 | Trigger RenderDoc Capture
+F12 | Trigger RenderDoc Capture (or game-only screenshot if RenderDoc is unavailable)
+Alt+F12 | Capture screenshot including HUD/dialog overlays
 
 > [!NOTE]
 > Xbox and DualShock controllers work out of the box.
@@ -145,12 +151,16 @@ The following firmware modules are supported and must be placed in shadPS4's `sy
 
 <div align="center">
 
-| Modules                 | Modules                 | Modules                 | Modules                 |  
-|-------------------------|-------------------------|-------------------------|-------------------------|  
-| libSceCesCs.sprx        | libSceFont.sprx         | libSceFontFt.sprx       | libSceFreeTypeOt.sprx   |
-| libSceJson.sprx         | libSceJson2.sprx        | libSceLibcInternal.sprx | libSceNgs2.sprx         |  
-| libSceUlt.sprx          |                         |                         |                         |
-
+| Modules                        | Modules                        | Modules                        | Modules                        |
+|--------------------------------|--------------------------------|--------------------------------|--------------------------------|
+| libSceAt9Enc.sprx              | libSceAudiodec.sprx            | libSceAudiodecCpu.sprx         | libSceAudiodecCpuDdp.sprx      |
+| libSceAudiodecCpuDtsHdLbr.sprx | libSceAudiodecCpuHevag.sprx    | libSceAudiodecCpuM4aac.sprx    | libSceAvPlayer.sprx            |
+| libSceAvPlayerStreaming.sprx   | libSceBeisobmf.sprx            | libSceBemp2sys.sprx            | libSceCesCs.sprx               |
+| libSceFont.sprx                | libSceFontFt.sprx              | libSceFreeTypeOl.sprx          | libSceFreeTypeOptOl.sprx       |
+| libSceFreeTypeOt.sprx          | libSceJpegDec.sprx             | libSceJpegEnc.sprx             | libSceJson.sprx                |
+| libSceJson2.sprx               | libSceLibcInternal.sprx        | libSceNgs2.sprx                | libScePngEnc.sprx              |
+| libScePsmKitSystem.sprx        | libSceRtc.sprx                 | libSceRudp.sprx                | libSceSystemGesture.sprx       |
+| libSceUlt.sprx                 | libSceWkFontConfig.sprx        | libSceXml.sprx                 |
 </div>
 
 > [!Caution]
@@ -171,6 +181,10 @@ The following firmware modules are supported and must be placed in shadPS4's `sy
 
 Logo is done by [**Xphalnos**](https://github.com/Xphalnos)
 
+<a href="https://github.com/shadps4-emu/shadPS4/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=shadps4-emu/shadPS4&max=24">
+</a>
+
 # Contributing
 
 If you want to contribute, please read the [**CONTRIBUTING.md**](https://github.com/shadps4-emu/shadPS4/blob/main/CONTRIBUTING.md) file.\
@@ -188,6 +202,8 @@ A few noteworthy teams/projects who've helped us along the way are:
 - **yuzu**: Our shader compiler has been designed with yuzu's Hades compiler as a blueprint. This allowed us to focus on the challenges of emulating a modern AMD GPU while having a high-quality optimizing shader compiler implementation as a base.
 
 - [**felix86**](https://github.com/OFFTKP/felix86): A new x86-64 → RISC-V Linux userspace emulator
+
+- [**emudev.org**](https://emudev.org/): A network of people interested in the documentation, emulation, simulation and re-implementation of hardware near extinction . Belongs to my friend skmp and me (shadow) also a member of it
 
 # License
 

@@ -52,6 +52,8 @@ struct ImageSpecialization {
     bool is_srgb = false;
     AmdGpu::CompMapping dst_select{};
     AmdGpu::NumberConversion num_conversion{};
+    // FIXME any pipeline cache changes needed?
+    u32 num_bindings = 0;
 
     bool operator==(const ImageSpecialization&) const = default;
 };
@@ -98,7 +100,7 @@ struct StageSpecialization {
         if (info_.stage == Stage::Vertex && fetch_shader_data) {
             // Specialize shader on VS input number types to follow spec.
             ForEachSharp(vs_attribs, fetch_shader_data->attributes,
-                         [&profile_, this](auto& spec, const auto& desc, AmdGpu::Buffer sharp) {
+                         [this](auto& spec, const auto& desc, AmdGpu::Buffer sharp) {
                              using InstanceIdType = Shader::Gcn::VertexAttribute::InstanceIdType;
                              if (const auto step_rate = desc.GetStepRate();
                                  step_rate != InstanceIdType::None) {
@@ -108,9 +110,7 @@ struct StageSpecialization {
                                                            ? runtime_info.vs_info.step_rate_1
                                                            : 1);
                              }
-                             spec.num_class = profile_.support_legacy_vertex_attributes
-                                                  ? AmdGpu::NumberClass{}
-                                                  : AmdGpu::GetNumberClass(sharp.GetNumberFmt());
+                             spec.num_class = AmdGpu::GetNumberClass(sharp.GetNumberFmt());
                              spec.dst_select = sharp.DstSelect();
                          });
         }
@@ -133,7 +133,7 @@ struct StageSpecialization {
                          }
                      });
         ForEachSharp(binding, images, info->images,
-                     [](auto& spec, const auto& desc, AmdGpu::Image sharp) {
+                     [&](auto& spec, const auto& desc, AmdGpu::Image sharp) {
                          spec.type = sharp.GetViewType(desc.is_array);
                          spec.is_integer = AmdGpu::IsInteger(sharp.GetNumberFmt());
                          spec.is_storage = desc.is_written;
@@ -144,6 +144,7 @@ struct StageSpecialization {
                              spec.is_srgb = sharp.GetNumberFmt() == AmdGpu::NumberFormat::Srgb;
                          }
                          spec.num_conversion = sharp.GetNumberConversion();
+                         spec.num_bindings = desc.NumBindings(*info);
                      });
         ForEachSharp(binding, fmasks, info->fmasks,
                      [](auto& spec, const auto& desc, AmdGpu::Image sharp) {
@@ -161,11 +162,7 @@ struct StageSpecialization {
             info->l_stage == LogicalStage::TessellationEval) {
             TessellationDataConstantBuffer tess_constants{};
             info->ReadTessConstantBuffer(tess_constants);
-            if (info->l_stage == LogicalStage::TessellationControl) {
-                runtime_info.hs_info.InitFromTessConstants(tess_constants);
-            } else {
-                runtime_info.vs_info.InitFromTessConstants(tess_constants);
-            }
+            runtime_info.InitFromTessConstants(tess_constants);
         }
     }
 

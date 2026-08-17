@@ -1,15 +1,17 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <forward_list>
 #include <list>
 #include <mutex>
 #include <shared_mutex>
 
 #include "common/enum.h"
+#include "common/shared_first_mutex.h"
 #include "core/libraries/kernel/sync/mutex.h"
 #include "core/libraries/kernel/sync/semaphore.h"
 #include "core/libraries/kernel/time.h"
@@ -24,10 +26,23 @@ class SymbolsResolver;
 
 namespace Libraries::Kernel {
 
+constexpr int PthreadInheritSched = 4;
+
+constexpr int ORBIS_KERNEL_PRIO_FIFO_DEFAULT = 700;
+constexpr int ORBIS_KERNEL_PRIO_FIFO_LOWEST = 256;
+constexpr int ORBIS_KERNEL_PRIO_FIFO_HIGHEST = 767;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_DEFAULT = 900;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_LOWEST = 768;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_HIGHEST = 959;
+constexpr int ORBIS_KERNEL_PRIO_RR_DEFAULT = 700;
+constexpr int ORBIS_KERNEL_PRIO_RR_LOWEST = 256;
+constexpr int ORBIS_KERNEL_PRIO_RR_HIGHEST = 767;
+
 struct Pthread;
 
 enum class PthreadMutexFlags : u32 {
     TypeMask = 0xff,
+    Private = 0x100,
     Deferred = 0x200,
 };
 DECLARE_ENUM_FLAG_OPERATORS(PthreadMutexFlags)
@@ -47,13 +62,14 @@ enum class PthreadMutexProt : u32 {
 };
 
 struct PthreadMutex {
-    TimedMutex m_lock;
-    PthreadMutexFlags m_flags;
-    Pthread* m_owner;
+    std::atomic<Pthread*> m_owner;
     int m_count;
     int m_spinloops;
     int m_yieldloops;
     PthreadMutexProt m_protocol;
+    u64 : 64;
+    PthreadMutexFlags m_flags;
+    TimedMutex m_lock;
     std::string name;
 
     [[nodiscard]] PthreadMutexType Type() const noexcept {
@@ -85,6 +101,9 @@ struct PthreadMutex {
     int IsOwned(Pthread* curthread) const;
 };
 using PthreadMutexT = PthreadMutex*;
+
+// libc and libSceLibcInternal modify the m_flags of a mutex, make sure it's in the right spot.
+static_assert(offsetof(PthreadMutex, m_flags) == 0x20, "Incorrect offset for mutex flags");
 
 struct PthreadMutexAttr {
     PthreadMutexType m_type;
@@ -144,6 +163,7 @@ struct PthreadCleanup {
 };
 
 enum class PthreadAttrFlags : u32 {
+    ScopeProcess = 0,
     Detached = 1,
     ScopeSystem = 2,
     InheritSched = 4,
@@ -153,7 +173,7 @@ enum class PthreadAttrFlags : u32 {
 DECLARE_ENUM_FLAG_OPERATORS(PthreadAttrFlags)
 
 enum class SchedPolicy : u32 {
-    Fifo = 0,
+    Fifo = 1,
     Other = 2,
     RoundRobin = 3,
 };
@@ -184,11 +204,12 @@ static constexpr u32 ThrGuardDefault = ThrPageSize;
 
 struct PthreadRwlockAttr {
     int pshared;
+    int type;
 };
 using PthreadRwlockAttrT = PthreadRwlockAttr*;
 
 struct PthreadRwlock {
-    std::shared_timed_mutex lock;
+    Common::SharedFirstMutex lock;
     Pthread* owner;
 
     int Wrlock(const OrbisKernelTimespec* abstime);
@@ -206,8 +227,8 @@ struct PthreadSpecificElem {
 using PthreadKeyDestructor = void PS4_SYSV_ABI (*)(const void*);
 
 struct PthreadKey {
-    int allocated;
-    int seqno;
+    std::atomic<int> allocated;
+    std::atomic<int> seqno;
     PthreadKeyDestructor destructor;
 };
 using PthreadKeyT = s32;
@@ -221,7 +242,7 @@ enum class PthreadOnceState : u32 {
 
 struct PthreadOnce {
     std::atomic<PthreadOnceState> state;
-    std::mutex mutex;
+    PthreadMutexT mutex;
 };
 
 enum class ThreadFlags : u32 {
@@ -255,22 +276,22 @@ struct Pthread {
     static constexpr u32 MaxDeferWaiters = 50;
 
     std::atomic<s32> tid;
-    std::mutex lock;
+    std::unique_ptr<std::mutex> lock = std::make_unique<std::mutex>();
     u32 cycle;
-    int locklevel;
-    int critical_count;
+    std::atomic_int locklevel;
+    std::atomic_int critical_count;
     int sigblock;
     int refcount;
     PthreadEntryFunc start_routine;
     void* arg;
-    Core::NativeThread native_thr;
+    std::unique_ptr<Core::NativeThread> native_thr;
     PthreadAttr attr;
-    bool cancel_enable;
-    bool cancel_pending;
-    bool cancel_point;
-    bool no_cancel;
-    bool cancel_async;
-    bool cancelling;
+    std::atomic_bool cancel_enable;
+    std::atomic_bool cancel_pending;
+    std::atomic_bool cancel_point;
+    std::atomic_bool no_cancel;
+    std::atomic_bool cancel_async;
+    std::atomic_bool cancelling;
     u64 sigmask;
     bool unblock_sigcancel;
     bool in_sigsuspend;
@@ -281,6 +302,7 @@ struct Pthread {
     ThreadFlags flags;
     ThreadListFlags tlflags;
     void* ret;
+    u8 pad0[272];
     PthreadSpecificElem* specific;
     int specific_data_count;
     int rdlock_count;
@@ -292,17 +314,21 @@ struct Pthread {
     int report_events;
     int event_mask;
     std::string name;
-    BinarySemaphore wake_sema{0};
+    WakeSemaphore wake_sema{0};
     SleepQueue* sleepqueue;
     void* wchan;
     PthreadMutex* mutex_obj;
     bool will_sleep;
     bool has_user_waiters;
     int nwaiter_defer;
-    BinarySemaphore* defer_waiters[MaxDeferWaiters];
+    WakeSemaphore* defer_waiters[MaxDeferWaiters]{};
+    Pthread* join_target{};
+    std::mutex join_wait_mutex;
+    std::condition_variable join_wait_cv;
 
     bool InCritical() const noexcept {
-        return locklevel > 0 || critical_count > 0;
+        return locklevel.load(std::memory_order_acquire) > 0 ||
+               critical_count.load(std::memory_order_acquire) > 0;
     }
 
     bool ShouldCollect() const noexcept {
@@ -315,25 +341,60 @@ struct Pthread {
 
     void WakeAll() {
         for (int i = 0; i < nwaiter_defer; i++) {
-            defer_waiters[i]->release();
+            WakeSemaphore* waiter = defer_waiters[i];
+            defer_waiters[i] = nullptr;
+            if (waiter != nullptr) {
+                waiter->release();
+            }
         }
         nwaiter_defer = 0;
     }
 
     void ClearWake() {
-        // Try to acquire wake semaphore to reset it.
-        void(wake_sema.try_acquire());
+        while (wake_sema.try_acquire_pending()) {
+        }
     }
 
-    bool Sleep(const OrbisKernelTimespec* abstime, u64 usec) {
+    bool Sleep(const OrbisKernelTimespec* abstime, u64 usec, ClockId clock_id = ClockId::Realtime) {
         will_sleep = false;
         if (nwaiter_defer > 0) {
             WakeAll();
         }
         if (abstime == THR_RELTIME) {
-            return wake_sema.try_acquire_for(std::chrono::microseconds(usec));
+            constexpr u64 MaxUsec =
+                static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                     std::chrono::nanoseconds::max())
+                                     .count());
+            const auto timeout = std::chrono::microseconds(std::min(usec, MaxUsec));
+            return wake_sema.try_acquire_for(timeout);
         } else if (abstime != nullptr) {
-            return wake_sema.try_acquire_until(abstime->TimePoint());
+            OrbisKernelTimespec now{};
+            if (posix_clock_gettime(static_cast<u32>(clock_id), &now) != 0) {
+                return false;
+            }
+
+            if (abstime->tv_sec < now.tv_sec ||
+                (abstime->tv_sec == now.tv_sec && abstime->tv_nsec <= now.tv_nsec)) {
+                return wake_sema.try_acquire_pending();
+            }
+
+            s64 seconds = abstime->tv_sec - now.tv_sec;
+            s64 nanoseconds = abstime->tv_nsec - now.tv_nsec;
+            if (nanoseconds < 0) {
+                --seconds;
+                nanoseconds += 1'000'000'000;
+            }
+
+            constexpr auto MaxTimeout = std::chrono::nanoseconds::max();
+            constexpr s64 MaxSeconds =
+                std::chrono::duration_cast<std::chrono::seconds>(MaxTimeout).count();
+            const auto seconds_part = std::chrono::seconds(std::min(seconds, MaxSeconds));
+            const auto max_nanoseconds = MaxTimeout - seconds_part;
+            const auto timeout =
+                seconds > MaxSeconds || std::chrono::nanoseconds(nanoseconds) > max_nanoseconds
+                    ? MaxTimeout
+                    : seconds_part + std::chrono::nanoseconds(nanoseconds);
+            return wake_sema.try_acquire_for(timeout);
         } else {
             wake_sema.acquire();
             return true;
@@ -342,9 +403,18 @@ struct Pthread {
 
     int SetAffinity(const Cpuset* cpuset);
 };
+static_assert(offsetof(Pthread, specific) == 0x1c8);
+
 using PthreadT = Pthread*;
 
 extern thread_local Pthread* g_curthread;
+
+void PthreadTestCancel();
+void PthreadCancelInterrupt() noexcept;
+#ifndef _WIN32
+bool IsPthreadCancelSignal(int native_signal) noexcept;
+#endif
+void PS4_SYSV_ABI posix_pthread_exit(void* status);
 
 void RegisterMutex(Core::Loader::SymbolsResolver* sym);
 void RegisterCond(Core::Loader::SymbolsResolver* sym);
