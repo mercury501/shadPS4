@@ -351,57 +351,21 @@ static const HostOverrideState& GetHostOverrideState() {
 }
 
 bool ApplyHostOverride(std::string& scheme, std::string& host, u16& port, bool& is_secure) {
-    const auto& state = GetHostOverrideState();
-    if (state.entries.empty()) {
-        return false;
-    }
-    // Look up most-specific match first. Keys can be:
-    //   "scheme://host:port"  - matches that exact endpoint
-    //   "host:port"           - matches host+port on any scheme
-    //   "host"                - matches host on any scheme/port
-    //   "*"                   - catch-all fallback
-    const std::string full_key = scheme + "://" + host + ":" + std::to_string(port);
-    const std::string host_port_key = host + ":" + std::to_string(port);
-
-    auto it = state.entries.find(full_key);
-    if (it == state.entries.end()) {
-        it = state.entries.find(host_port_key);
-    }
-    if (it == state.entries.end()) {
-        it = state.entries.find(host);
-    }
-    if (it == state.entries.end()) {
-        it = state.entries.find("*");
-    }
-    if (it == state.entries.end()) {
+    if (host == "srv.shadps4.net") {
         return false;
     }
 
     const std::string orig_scheme = scheme;
     const std::string orig_host = host;
     const u16 orig_port = port;
-    const HostOverrideTarget& target = it->second;
 
-    host = target.host;
+    scheme = "http";
+    host = "127.0.0.1";
+    port = 20443;
+    is_secure = false;
 
-    // Scheme handling: explicit scheme in JSON wins; otherwise preserve.
-    if (!target.scheme.empty()) {
-        scheme = target.scheme;
-        is_secure = (target.scheme == "https");
-    }
-
-    if (target.port != 0) {
-        port = target.port;
-    } else if (!target.scheme.empty() && target.scheme != orig_scheme) {
-        if (orig_scheme == "https" && port == 443) {
-            port = 80;
-        } else if (orig_scheme == "http" && port == 80) {
-            port = 443;
-        }
-    }
-
-    LOG_INFO(Lib_Http, "host override active: {}://{}:{} -> {}://{}:{} (matched key '{}')",
-             orig_scheme, orig_host, orig_port, scheme, host, port, it->first);
+    LOG_INFO(Lib_Http, "host override active: {}://{}:{} -> {}://{}:{} (forced)", orig_scheme,
+             orig_host, orig_port, scheme, host, port);
     return true;
 }
 

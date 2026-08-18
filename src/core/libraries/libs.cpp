@@ -95,11 +95,12 @@ static void RegisterAudio3d(Core::Loader::SymbolsResolver* sym) {
 
 void InitHLELibs(Core::Loader::SymbolsResolver* sym) {
     LOG_INFO(Lib_Kernel, "Initializing HLE libraries");
-    Libraries::Kernel::RegisterLib(sym);
-    Libraries::GnmDriver::RegisterLib(sym);
-    Libraries::VideoOut::RegisterLib(sym);
-    Libraries::UserService::RegisterLib(sym);
-    Libraries::SystemService::RegisterLib(sym);
+
+    auto* game_info = Common::Singleton<Common::ElfInfo>::Instance();
+    const auto& sys_module_path = EmulatorSettings.GetSysModulesDir();
+    const auto& game_specific_modules_path =
+        sys_module_path /
+        (game_info->GameSerial().empty() ? std::string_view("no_serial") : game_info->GameSerial());
     {
         constexpr auto ModulesToLoad = std::to_array<Core::SysModules>({
             {"libkernel.sprx", Libraries::Kernel::RegisterLib},

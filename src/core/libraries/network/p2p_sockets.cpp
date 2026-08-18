@@ -37,26 +37,26 @@ int P2PSocket::Listen(int backlog) {
 int P2PSocket::SendMessage(const OrbisNetMsghdr* msg, int flags) {
     LOG_ERROR(Lib_Net, "(STUBBED) called");
     *Libraries::Kernel::__Error() = ORBIS_NET_EAGAIN;
-    return 1;
+    return 0;
 }
 
 int P2PSocket::SendPacket(const void* msg, u32 len, int flags, const OrbisNetSockaddr* to,
                           u32 tolen) {
     LOG_ERROR(Lib_Net, "(STUBBED) called");
     *Libraries::Kernel::__Error() = ORBIS_NET_EAGAIN;
-    return 1;
+    return 0;
 }
 
 int P2PSocket::ReceiveMessage(OrbisNetMsghdr* msg, int flags) {
     LOG_ERROR(Lib_Net, "(STUBBED) called");
     *Libraries::Kernel::__Error() = ORBIS_NET_EAGAIN;
-    return 1;
+    return 0;
 }
 
 int P2PSocket::ReceivePacket(void* buf, u32 len, int flags, OrbisNetSockaddr* from, u32* fromlen) {
     LOG_ERROR(Lib_Net, "(STUBBED) called");
     *Libraries::Kernel::__Error() = ORBIS_NET_EAGAIN;
-    return 1;
+    return 0;
 }
 
 SocketPtr P2PSocket::Accept(OrbisNetSockaddr* addr, u32* addrlen) {

@@ -647,7 +647,7 @@ int PS4_SYSV_ABI sceNetEpollControl(OrbisNetId epollid, OrbisNetEpollFlag op, Or
         }
 
         auto file = FDTable::Instance()->GetFile(id);
-        if (!file) {
+        if (!file || !file->socket || !file->socket->Native().has_value()) {
             *sceNetErrnoLoc() = ORBIS_NET_EBADF;
             LOG_ERROR(Lib_Net, "file id is invalid = {}", id);
             return ORBIS_NET_ERROR_EBADF;

@@ -661,8 +661,9 @@ public:
     SETTING_FORWARD(m_general, ExtraDmemInMBytes, extra_dmem_in_mbytes)
     SETTING_FORWARD(m_general, ExtraFmemInMBytes, extra_fmem_in_mbytes)
     bool IsShadNetEnabled() const {
-        return m_general.shad_net_enabled.get(m_configMode) &&
-               !m_shadnet_session_disabled.load(std::memory_order_relaxed);
+        return true;
+        // return m_general.shad_net_enabled.get(m_configMode) &&
+        //        !m_shadnet_session_disabled.load(std::memory_order_relaxed);
     }
     void SetShadNetEnabled(bool v, bool specific = false) {
         m_general.shad_net_enabled.set(v, specific);
@@ -680,7 +681,12 @@ public:
     SETTING_FORWARD(m_general, TrophyNotificationDuration, trophy_notification_duration)
     SETTING_FORWARD(m_general, TrophyNotificationSide, trophy_notification_side)
     SETTING_FORWARD_BOOL(m_general, ShowSplash, show_splash)
-    SETTING_FORWARD_BOOL(m_general, ConnectedToNetwork, connected_to_network)
+    bool IsConnectedToNetwork() const {
+        return true;
+    }
+    void SetConnectedToNetwork(bool v, bool specific = false) {
+        m_general.connected_to_network.set(v, specific);
+    }
     SETTING_FORWARD_BOOL(m_general, DiscordRPCEnabled, discord_rpc_enabled)
     SETTING_FORWARD_BOOL(m_general, ShowFpsCounter, show_fps_counter)
     SETTING_FORWARD(m_general, ConsoleLanguage, console_language)
